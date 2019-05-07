@@ -99,6 +99,95 @@ func addTestCatalog(route string, content []byte, link string, m *testutil.Reque
 	})
 }
 
+func TestBlobResume(t *testing.T) {
+	dgst, b1 := newRandomBlob(1024)
+	id := uuid.Generate().String()
+	var m testutil.RequestResponseMap
+	repo, _ := reference.WithName("test.example.com/repo1")
+	m = append(m, testutil.RequestResponseMapping{
+		Request: testutil.Request{
+			Method: "PATCH",
+			Route:  "/v2/" + repo.Name() + "/blobs/uploads/" + id,
+			Body:   b1,
+		},
+		Response: testutil.Response{
+			StatusCode: http.StatusAccepted,
+			Headers: http.Header(map[string][]string{
+				"Docker-Content-Digest": {dgst.String()},
+				"Range":                 {fmt.Sprintf("0-%d", len(b1)-1)},
+			}),
+		},
+	})
+	m = append(m, testutil.RequestResponseMapping{
+		Request: testutil.Request{
+			Method: "PUT",
+			Route:  "/v2/" + repo.Name() + "/blobs/uploads/" + id,
+			QueryParams: map[string][]string{
+				"digest": {dgst.String()},
+			},
+		},
+		Response: testutil.Response{
+			StatusCode: http.StatusCreated,
+			Headers: http.Header(map[string][]string{
+				"Docker-Content-Digest": {dgst.String()},
+				"Content-Range":         {fmt.Sprintf("0-%d", len(b1)-1)},
+			}),
+		},
+	})
+	m = append(m, testutil.RequestResponseMapping{
+		Request: testutil.Request{
+			Method: "HEAD",
+			Route:  "/v2/" + repo.Name() + "/blobs/" + dgst.String(),
+		},
+		Response: testutil.Response{
+			StatusCode: http.StatusOK,
+			Headers: http.Header(map[string][]string{
+				"Content-Length": {fmt.Sprint(len(b1))},
+				"Last-Modified":  {time.Now().Add(-1 * time.Second).Format(time.ANSIC)},
+			}),
+		},
+	})
+
+	e, c := testServer(m)
+	defer c()
+
+	ctx := context.Background()
+	r, err := NewRepository(repo, e, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l := r.Blobs(ctx)
+	upload, err := l.Resume(ctx, id)
+	if err != nil {
+		t.Errorf("Error resuming blob: %s", err.Error())
+	}
+
+	if upload.ID() != id {
+		t.Errorf("Unexpected UUID %s; expected %s", upload.ID(), id)
+	}
+
+	n, err := upload.ReadFrom(bytes.NewReader(b1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != int64(len(b1)) {
+		t.Fatalf("Unexpected ReadFrom length: %d; expected: %d", n, len(b1))
+	}
+
+	blob, err := upload.Commit(ctx, distribution.Descriptor{
+		Digest: dgst,
+		Size:   int64(len(b1)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if blob.Size != int64(len(b1)) {
+		t.Fatalf("Unexpected blob size: %d; expected: %d", blob.Size, len(b1))
+	}
+}
+
 func TestBlobDelete(t *testing.T) {
 	dgst, _ := newRandomBlob(1024)
 	var m testutil.RequestResponseMap
