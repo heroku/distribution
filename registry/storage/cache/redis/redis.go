@@ -11,6 +11,8 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
+const ContextCacheKeyPrefix = "distributionCacheKeyPrefix"
+
 // redisBlobStatService provides an implementation of
 // BlobDescriptorCacheProvider based on redis. Blob descriptors are stored in
 // two parts. The first provide fast access to repository membership through a
@@ -268,7 +270,7 @@ func (rsrbds *repositoryScopedRedisBlobDescriptorService) repositoryBlobSetKey(c
 }
 
 func cacheKeyPrefix(ctx context.Context) string {
-	prefix, ok := ctx.Value("distributionCacheKeyPrefix").(string)
+	prefix, ok := ctx.Value(ContextCacheKeyPrefix).(string)
 	if ok && prefix != "" {
 		prefix = prefix + "::"
 	}
