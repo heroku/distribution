@@ -8,6 +8,7 @@ import (
 	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/distribution/uuid"
+	events "github.com/docker/go-events"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -17,7 +18,7 @@ type bridge struct {
 	actor             ActorRecord
 	source            SourceRecord
 	request           RequestRecord
-	sink              Sink
+	sink              events.Sink
 }
 
 var _ Listener = &bridge{}
@@ -32,7 +33,7 @@ type URLBuilder interface {
 // using the actor and source. Any urls populated in the events created by
 // this bridge will be created using the URLBuilder.
 // TODO(stevvooe): Update this to simply take a context.Context object.
-func NewBridge(ub URLBuilder, source SourceRecord, actor ActorRecord, request RequestRecord, sink Sink, includeReferences bool) Listener {
+func NewBridge(ub URLBuilder, source SourceRecord, actor ActorRecord, request RequestRecord, sink events.Sink, includeReferences bool) Listener {
 	return &bridge{
 		ub:                ub,
 		includeReferences: includeReferences,
@@ -123,15 +124,6 @@ func (b *bridge) RepoDeleted(repo reference.Named) error {
 	event.Target.Repository = repo.Name()
 
 	return b.sink.Write(*event)
-}
-
-func (b *bridge) createManifestEventAndWrite(action string, repo reference.Named, sm distribution.Manifest) error {
-	manifestEvent, err := b.createManifestEvent(action, repo, sm)
-	if err != nil {
-		return err
-	}
-
-	return b.sink.Write(*manifestEvent)
 }
 
 func (b *bridge) createManifestDeleteEventAndWrite(action string, repo reference.Named, dgst digest.Digest) error {

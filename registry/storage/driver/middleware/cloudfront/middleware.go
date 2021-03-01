@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudfront/sign"
 	dcontext "github.com/docker/distribution/context"
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
-	"github.com/docker/distribution/registry/storage/driver/middleware"
+	storagemiddleware "github.com/docker/distribution/registry/storage/driver/middleware"
 )
 
 // cloudFrontStorageMiddleware provides a simple implementation of layerHandler that
@@ -111,16 +111,21 @@ func newCloudFrontStorageMiddleware(storageDriver storagedriver.StorageDriver, o
 		}
 	}
 
-	// parse updatefrenquency
+	// parse updatefrequency
 	updateFrequency := defaultUpdateFrequency
-	if u, ok := options["updatefrenquency"]; ok {
+	// #2447 introduced a typo. Support it for backward compatibility.
+	if _, ok := options["updatefrenquency"]; ok {
+		options["updatefrequency"] = options["updatefrenquency"]
+		dcontext.GetLogger(context.Background()).Warn("cloudfront updatefrenquency is deprecated. Please use updatefrequency")
+	}
+	if u, ok := options["updatefrequency"]; ok {
 		switch u := u.(type) {
 		case time.Duration:
 			updateFrequency = u
 		case string:
 			updateFreq, err := time.ParseDuration(u)
 			if err != nil {
-				return nil, fmt.Errorf("invalid updatefrenquency: %s", err)
+				return nil, fmt.Errorf("invalid updatefrequency: %s", err)
 			}
 			duration = updateFreq
 		}
@@ -138,27 +143,33 @@ func newCloudFrontStorageMiddleware(storageDriver storagedriver.StorageDriver, o
 
 	// parse ipfilteredby
 	var awsIPs *awsIPs
-	if ipFilteredBy := options["ipfilteredby"].(string); ok {
-		switch strings.ToLower(strings.TrimSpace(ipFilteredBy)) {
-		case "", "none":
-			awsIPs = nil
-		case "aws":
-			newAWSIPs(ipRangesURL, updateFrequency, nil)
-		case "awsregion":
-			var awsRegion []string
-			if regions, ok := options["awsregion"].(string); ok {
-				for _, awsRegions := range strings.Split(regions, ",") {
-					awsRegion = append(awsRegion, strings.ToLower(strings.TrimSpace(awsRegions)))
+	if i, ok := options["ipfilteredby"]; ok {
+		if ipFilteredBy, ok := i.(string); ok {
+			switch strings.ToLower(strings.TrimSpace(ipFilteredBy)) {
+			case "", "none":
+				awsIPs = nil
+			case "aws":
+				awsIPs = newAWSIPs(ipRangesURL, updateFrequency, nil)
+			case "awsregion":
+				var awsRegion []string
+				if i, ok := options["awsregion"]; ok {
+					if regions, ok := i.(string); ok {
+						for _, awsRegions := range strings.Split(regions, ",") {
+							awsRegion = append(awsRegion, strings.ToLower(strings.TrimSpace(awsRegions)))
+						}
+						awsIPs = newAWSIPs(ipRangesURL, updateFrequency, awsRegion)
+					} else {
+						return nil, fmt.Errorf("awsRegion must be a comma separated string of valid aws regions")
+					}
+				} else {
+					return nil, fmt.Errorf("awsRegion is not defined")
 				}
-				awsIPs = newAWSIPs(ipRangesURL, updateFrequency, awsRegion)
-			} else {
-				return nil, fmt.Errorf("awsRegion must be a comma separated string of valid aws regions")
+			default:
+				return nil, fmt.Errorf("ipfilteredby only allows a string the following value: none|aws|awsregion")
 			}
-		default:
-			return nil, fmt.Errorf("ipfilteredby only allows a string the following value: none|aws|awsregion")
+		} else {
+			return nil, fmt.Errorf("ipfilteredby only allows a string with the following value: none|aws|awsregion")
 		}
-	} else {
-		return nil, fmt.Errorf("ipfilteredby only allows a string with the following value: none|aws|awsregion")
 	}
 
 	return &cloudFrontStorageMiddleware{

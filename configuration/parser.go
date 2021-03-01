@@ -122,7 +122,7 @@ func (p *Parser) Parse(in []byte, v interface{}) error {
 
 	parseInfo, ok := p.mapping[versionedStruct.Version]
 	if !ok {
-		return fmt.Errorf("Unsupported version: %q", versionedStruct.Version)
+		return fmt.Errorf("unsupported version: %q", versionedStruct.Version)
 	}
 
 	parseAs := reflect.New(parseInfo.ParseAs)
@@ -220,7 +220,7 @@ func (p *Parser) overwriteStruct(v reflect.Value, fullpath string, path []string
 		}
 	case reflect.Ptr:
 		if field.IsNil() {
-			field.Set(reflect.New(sf.Type))
+			field.Set(reflect.New(field.Type().Elem()))
 		}
 	}
 

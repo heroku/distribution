@@ -83,6 +83,7 @@ var configStruct = Configuration{
 			Certificate string   `yaml:"certificate,omitempty"`
 			Key         string   `yaml:"key,omitempty"`
 			ClientCAs   []string `yaml:"clientcas,omitempty"`
+			MinimumTLS  string   `yaml:"minimumtls,omitempty"`
 			LetsEncrypt struct {
 				CacheFile string   `yaml:"cachefile,omitempty"`
 				Email     string   `yaml:"email,omitempty"`
@@ -105,6 +106,7 @@ var configStruct = Configuration{
 			Certificate string   `yaml:"certificate,omitempty"`
 			Key         string   `yaml:"key,omitempty"`
 			ClientCAs   []string `yaml:"clientcas,omitempty"`
+			MinimumTLS  string   `yaml:"minimumtls,omitempty"`
 			LetsEncrypt struct {
 				CacheFile string   `yaml:"cachefile,omitempty"`
 				Email     string   `yaml:"email,omitempty"`
@@ -540,9 +542,7 @@ func copyConfig(config Configuration) *Configuration {
 	}
 
 	configCopy.Notifications = Notifications{Endpoints: []Endpoint{}}
-	for _, v := range config.Notifications.Endpoints {
-		configCopy.Notifications.Endpoints = append(configCopy.Notifications.Endpoints, v)
-	}
+	configCopy.Notifications.Endpoints = append(configCopy.Notifications.Endpoints, config.Notifications.Endpoints...)
 
 	configCopy.HTTP.Headers = make(http.Header)
 	for k, v := range config.HTTP.Headers {
