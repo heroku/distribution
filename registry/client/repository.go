@@ -809,12 +809,21 @@ func (bs *blobs) Resume(ctx context.Context, id string) (distribution.BlobWriter
 		return nil, err
 	}
 
+	var offset int64
+	// take the offset from the context, if available
+	// since we are proxying the request to another registry - we trust the offset we have from _state
+	// and give that to the upstream repository
+	if v, ok := ctx.Value("state.resume.offset").(int64); ok {
+		offset = v
+	}
+
 	return &httpBlobUpload{
 		statter:   bs.statter,
 		client:    bs.client,
 		uuid:      id,
 		startedAt: time.Now(),
 		location:  location,
+		offset:    offset,
 	}, nil
 }
 
