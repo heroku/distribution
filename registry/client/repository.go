@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/docker/distribution"
+	dcontext "github.com/docker/distribution/context"
 	"github.com/docker/distribution/reference"
 	v2 "github.com/docker/distribution/registry/api/v2"
 	"github.com/docker/distribution/registry/client/transport"
@@ -813,7 +814,7 @@ func (bs *blobs) Resume(ctx context.Context, id string) (distribution.BlobWriter
 	// take the offset from the context, if available
 	// since we are proxying the request to another registry - we trust the offset we have from _state
 	// and give that to the upstream repository
-	if v, ok := ctx.Value("state.resume.offset").(int64); ok {
+	if v, ok := ctx.Value(dcontext.ResumeOffsetKey{}).(int64); ok {
 		offset = v
 	}
 
