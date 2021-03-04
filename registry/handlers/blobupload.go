@@ -251,7 +251,6 @@ func (buh *blobUploadHandler) ResumeBlobUpload(ctx *Context, r *http.Request) ht
 	// store the resume offset for any repo that might need it (proxy repo)
 	ctx.Context = context.WithValue(ctx.Context, dcontext.ResumeOffsetKey{}, buh.State.Offset)
 
-
 	if state.Name != ctx.Repository.Named().Name() {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			dcontext.GetLogger(ctx).Infof("mismatched repository name in upload state: %q != %q", state.Name, buh.Repository.Named().Name())
