@@ -71,3 +71,8 @@ func (smc stringMapContext) Value(key interface{}) interface{} {
 
 	return smc.Context.Value(key)
 }
+
+
+type ResumeOffsetKey struct{}
+
+func (ResumeOffsetKey) String() string { return "state.resume.offset" }
