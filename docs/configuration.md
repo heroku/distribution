@@ -55,7 +55,7 @@ $ docker run -d -p 5000:5000 --restart=always --name registry \
 ```
 
 Use this
-[example YAML file](https://github.com/docker/distribution/blob/master/cmd/registry/config-example.yml)
+[example YAML file](https://github.com/distribution/distribution/blob/master/cmd/registry/config-example.yml)
 as a starting point.
 
 ## List of configuration options
@@ -118,6 +118,8 @@ storage:
     secretkey: awssecretkey
     region: us-west-1
     regionendpoint: http://myobjects.local
+    forcepathstyle: true
+    accelerate: false
     bucket: bucketname
     encrypt: true
     keyid: mykeyid
@@ -128,6 +130,7 @@ storage:
     multipartcopymaxconcurrency: 100
     multipartcopythresholdsize: 33554432
     rootdirectory: /s3/object/name/prefix
+    usedualstack: false
   swift:
     username: username
     password: password
@@ -159,6 +162,7 @@ storage:
     disable: false
   cache:
     blobdescriptor: redis
+    blobdescriptorsize: 10000
   maintenance:
     uploadpurging:
       enabled: true
@@ -268,6 +272,8 @@ redis:
     maxidle: 16
     maxactive: 64
     idletimeout: 300s
+  tls:
+    enabled: false
 health:
   storagedriver:
     enabled: true
@@ -324,7 +330,7 @@ check before parsing the remainder of the configuration file.
 ## `log`
 
 The `log` subsection configures the behavior of the logging system. The logging
-system outputs everything to stdout. You can adjust the granularity and format
+system outputs everything to stderr. You can adjust the granularity and format
 with this configuration section.
 
 ```none
@@ -419,6 +425,8 @@ storage:
     secretkey: awssecretkey
     region: us-west-1
     regionendpoint: http://myobjects.local
+    forcepathstyle: true
+    accelerate: false
     bucket: bucketname
     encrypt: true
     keyid: mykeyid
@@ -458,6 +466,7 @@ storage:
     enabled: false
   cache:
     blobdescriptor: inmemory
+    blobdescriptorsize: 10000
   maintenance:
     uploadpurging:
       enabled: true
@@ -555,6 +564,11 @@ layer metadata.
 
 > **NOTE**: Formerly, `blobdescriptor` was known as `layerinfo`. While these
 > are equivalent, `layerinfo` has been deprecated.
+
+If `blobdescriptor` is set to `inmemory`, the optional `blobdescriptorsize`
+parameter sets a limit on the number of descriptors to store in the cache.
+The default value is 10000. If this parameter is set to 0, the cache is allowed
+to grow with no size limit.
 
 ### `redirect`
 
@@ -795,7 +809,10 @@ http:
     clientcas:
       - /path/to/ca.pem
       - /path/to/another/ca.pem
-    minimumtls: tls1.0
+    minimumtls: tls1.2
+    ciphersuites:
+      - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+      - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
     letsencrypt:
       cachefile: /path/to/cache-file
       email: emailused@letsencrypt.com
@@ -831,10 +848,49 @@ and proxy connections to the registry server.
 
 | Parameter | Required | Description                                           |
 |-----------|----------|-------------------------------------------------------|
-| `certificate` | yes  | Absolute path to the x509 certificate file.           |
-| `key`         | yes  | Absolute path to the x509 private key file.           |
-| `clientcas`   | no   | An array of absolute paths to x509 CA files.          |
-| `minimumtls`  | no   | Minimum TLS version allowed (tls1.0, tls1.1, tls1.2). Defaults to tls1.0 |
+| `certificate`  | yes  | Absolute path to the x509 certificate file.           |
+| `key`          | yes  | Absolute path to the x509 private key file.           |
+| `clientcas`    | no   | An array of absolute paths to x509 CA files.          |
+| `minimumtls`   | no   | Minimum TLS version allowed (tls1.0, tls1.1, tls1.2, tls1.3). Defaults to tls1.2 |
+| `ciphersuites` | no   | Cipher suites allowed. Please see below for allowed values and default. |
+
+Available cipher suites:
+- TLS_RSA_WITH_RC4_128_SHA
+- TLS_RSA_WITH_3DES_EDE_CBC_SHA
+- TLS_RSA_WITH_AES_128_CBC_SHA
+- TLS_RSA_WITH_AES_256_CBC_SHA
+- TLS_RSA_WITH_AES_128_CBC_SHA256
+- TLS_RSA_WITH_AES_128_GCM_SHA256
+- TLS_RSA_WITH_AES_256_GCM_SHA384
+- TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
+- TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA
+- TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA
+- TLS_ECDHE_RSA_WITH_RC4_128_SHA
+- TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
+- TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+- TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA
+- TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
+- TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+- TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+- TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+- TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+- TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+- TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+- TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+- TLS_AES_128_GCM_SHA256
+- TLS_AES_256_GCM_SHA384
+- TLS_CHACHA20_POLY1305_SHA256
+
+Default cipher suites:
+- TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+- TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+- TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+- TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+- TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+- TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+- TLS_AES_128_GCM_SHA256
+- TLS_CHACHA20_POLY1305_SHA256
+- TLS_AES_256_GCM_SHA384
 
 ### `letsencrypt`
 
@@ -869,10 +925,16 @@ access to the debug endpoint is locked down in a production environment.
 The `debug` section takes a single required `addr` parameter, which specifies
 the `HOST:PORT` on which the debug server should accept connections.
 
+If the registry is configured as a pull-through cache, the `debug` server can be used
+to access proxy statistics. These statistics are exposed at `/debug/vars` in JSON format.
+
 ## `prometheus`
 
-The `prometheus` option defines whether the prometheus metrics is enable, as well
+The `prometheus` option defines whether the prometheus metrics are enabled, as well
 as the path to access the metrics.
+
+>**NOTE**: The prometheus metrics do **not** cover pull-through cache statistics.
+> Proxy statistics are exposed via `expvar` only.
 
 | Parameter | Required | Description                                           |
 |-----------|----------|-------------------------------------------------------|
@@ -976,13 +1038,16 @@ redis:
     maxidle: 16
     maxactive: 64
     idletimeout: 300s
+  tls:
+    enabled: false
 ```
 
 Declare parameters for constructing the `redis` connections. Registry instances
 may use the Redis instance for several applications. Currently, it caches
 information about immutable blobs. Most of the `redis` options control
 how the registry connects to the `redis` instance. You can control the pool's
-behavior with the [pool](#pool) subsection.
+behavior with the [pool](#pool) subsection. Additionally, you can control
+TLS connection settings with the [tls](#tls) subsection (in-transit encryption).
 
 You should configure Redis with the **allkeys-lru** eviction policy, because the
 registry does not set an expiration value on keys.
@@ -1012,6 +1077,20 @@ Use these settings to configure the behavior of the Redis connection pool.
 | `maxidle` | no       | The maximum number of idle connections in the pool.   |
 | `maxactive`| no      | The maximum number of connections which can be open before blocking a connection request. |
 | `idletimeout`| no    | How long to wait before closing inactive connections. |
+
+### `tls`
+
+```none
+tls:
+  enabled: false
+```
+
+Use these settings to configure Redis TLS.
+
+| Parameter | Required | Description                           |
+|-----------|----------|-------------------------------------- |
+| `enabled` | no       | Whether or not to use TLS in-transit. |
+
 
 ## `health`
 
@@ -1170,7 +1249,7 @@ Use the `manifests` subsection to configure validation of manifests. If
 #### `urls`
 
 The `allow` and `deny` options are each a list of
-[regular expressions](https://godoc.org/regexp/syntax) that restrict the URLs in
+[regular expressions](https://pkg.go.dev/regexp/syntax) that restrict the URLs in
 pushed manifests.
 
 If `allow` is unset, pushing a manifest containing URLs fails.
@@ -1206,7 +1285,7 @@ This example configures the registry instance to run on port `5000`, binding to
 verbose.
 
 See
-[config-example.yml](https://github.com/docker/distribution/blob/master/cmd/registry/config-example.yml)
+[config-example.yml](https://github.com/distribution/distribution/blob/master/cmd/registry/config-example.yml)
 for another simple configuration. Both examples are generally useful for local
 development.
 
