@@ -499,9 +499,6 @@ func (app *App) configureRedis(configuration *configuration.Configuration) {
 		return
 	}
 
-	// TLS if the redis addr is prefixed with "rediss://"
-	useTLS := configuration.Redis.Addr[0:8] == "rediss://"
-
 	pool := &redis.Pool{
 		Dial: func() (redis.Conn, error) {
 			// TODO(stevvooe): Yet another use case for contextual timing.
@@ -522,7 +519,7 @@ func (app *App) configureRedis(configuration *configuration.Configuration) {
 				redis.DialConnectTimeout(configuration.Redis.DialTimeout),
 				redis.DialReadTimeout(configuration.Redis.ReadTimeout),
 				redis.DialWriteTimeout(configuration.Redis.WriteTimeout),
-				redis.DialUseTLS(useTLS),
+				redis.DialUseTLS(true),
 				redis.DialTLSSkipVerify(true),
 			)
 			if err != nil {
