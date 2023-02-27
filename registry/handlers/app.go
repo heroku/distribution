@@ -493,8 +493,6 @@ func (app *App) configureEvents(configuration *configuration.Configuration) {
 
 type redisStartAtKey struct{}
 
-var circuitTripped = false
-
 func (app *App) configureRedis(configuration *configuration.Configuration) {
 	if configuration.Redis.Addr == "" {
 		dcontext.GetLogger(app).Infof("redis not configured")
@@ -504,82 +502,56 @@ func (app *App) configureRedis(configuration *configuration.Configuration) {
 	// TLS if the redis addr is prefixed with "rediss://"
 	useTLS := configuration.Redis.Addr[0:8] == "rediss://"
 
-	dial := func(forceTLS bool) (redis.Conn, error) {
-		// TODO(stevvooe): Yet another use case for contextual timing.
-		ctx := context.WithValue(app, redisStartAtKey{}, time.Now())
-
-		done := func(err error) {
-			logger := dcontext.GetLoggerWithField(ctx, "redis.connect.duration",
-				dcontext.Since(ctx, redisStartAtKey{}))
-			if err != nil {
-				logger.Errorf("redis: error connecting: %v", err)
-			} else {
-				logger.Infof("redis: connect %v", configuration.Redis.Addr)
-			}
-		}
-
-		conn, err := redis.Dial("tcp",
-			configuration.Redis.Addr,
-			redis.DialConnectTimeout(configuration.Redis.DialTimeout),
-			redis.DialReadTimeout(configuration.Redis.ReadTimeout),
-			redis.DialWriteTimeout(configuration.Redis.WriteTimeout),
-			redis.DialUseTLS(forceTLS),
-			redis.DialTLSSkipVerify(true),
-		)
-		if err != nil {
-			dcontext.GetLogger(app).Errorf("error connecting to redis instance %s: %v",
-				configuration.Redis.Addr, err)
-			done(err)
-			return nil, err
-		}
-
-		// authorize the connection
-		if configuration.Redis.Password != "" {
-			if _, err = conn.Do("AUTH", configuration.Redis.Password); err != nil {
-				defer conn.Close()
-				done(err)
-				return nil, err
-			}
-		}
-
-		// select the database to use
-		if configuration.Redis.DB != 0 {
-			if _, err = conn.Do("SELECT", configuration.Redis.DB); err != nil {
-				defer conn.Close()
-				done(err)
-				return nil, err
-			}
-		}
-
-		done(nil)
-		return conn, nil
-	}
-
 	pool := &redis.Pool{
 		Dial: func() (redis.Conn, error) {
-			// if we have a TLS address or the circuit is tripped - dial with TLS always
-			if useTLS || circuitTripped {
-				return dial(true)
-			}
+			// TODO(stevvooe): Yet another use case for contextual timing.
+			ctx := context.WithValue(app, redisStartAtKey{}, time.Now())
 
-			// otherwise - attempt to dial without TLS
-			conn, err := dial(false)
-
-			// if we get an error - try dialing with TLS
-			if err != nil && !circuitTripped {
-				dcontext.GetLogger(app).Errorf("redis_pool error: %v", err)
-				tlsConn, tlsErr := dial(true)
-
-				// there was no error, force TLS by setting the circuit to tripped
-				// otherwise, don't use this attempt and return the original error
-				if tlsErr == nil {
-					circuitTripped = true
-					dcontext.GetLogger(app).Info("count#redis.circuit.open: 1")
-					return tlsConn, tlsErr
+			done := func(err error) {
+				logger := dcontext.GetLoggerWithField(ctx, "redis.connect.duration",
+					dcontext.Since(ctx, redisStartAtKey{}))
+				if err != nil {
+					logger.Errorf("redis: error connecting: %v", err)
+				} else {
+					logger.Infof("redis: connect %v", configuration.Redis.Addr)
 				}
 			}
 
-			return conn, err
+			conn, err := redis.Dial("tcp",
+				configuration.Redis.Addr,
+				redis.DialConnectTimeout(configuration.Redis.DialTimeout),
+				redis.DialReadTimeout(configuration.Redis.ReadTimeout),
+				redis.DialWriteTimeout(configuration.Redis.WriteTimeout),
+				redis.DialUseTLS(useTLS),
+				redis.DialTLSSkipVerify(true),
+			)
+			if err != nil {
+				dcontext.GetLogger(app).Errorf("error connecting to redis instance %s: %v",
+					configuration.Redis.Addr, err)
+				done(err)
+				return nil, err
+			}
+
+			// authorize the connection
+			if configuration.Redis.Password != "" {
+				if _, err = conn.Do("AUTH", configuration.Redis.Password); err != nil {
+					defer conn.Close()
+					done(err)
+					return nil, err
+				}
+			}
+
+			// select the database to use
+			if configuration.Redis.DB != 0 {
+				if _, err = conn.Do("SELECT", configuration.Redis.DB); err != nil {
+					defer conn.Close()
+					done(err)
+					return nil, err
+				}
+			}
+
+			done(nil)
+			return conn, nil
 		},
 		MaxIdle:     configuration.Redis.Pool.MaxIdle,
 		MaxActive:   configuration.Redis.Pool.MaxActive,
