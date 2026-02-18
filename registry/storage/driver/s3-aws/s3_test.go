@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"os"
 	"reflect"
 	"strconv"
@@ -21,6 +22,38 @@ import (
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { check.TestingT(t) }
+
+func TestTransportWrapper(t *testing.T) {
+	var wrapped bool
+	wrapper := func(rt http.RoundTripper) http.RoundTripper {
+		wrapped = true
+		return rt
+	}
+
+	params := DriverParameters{
+		AccessKey:                   "key",
+		SecretKey:                   "secret",
+		Bucket:                      "bucket",
+		Region:                      "us-east-1",
+		RegionEndpoint:              "http://localhost",
+		V4Auth:                      true,
+		Secure:                      false,
+		ChunkSize:                   minChunkSize,
+		MultipartCopyChunkSize:      defaultMultipartCopyChunkSize,
+		MultipartCopyMaxConcurrency: defaultMultipartCopyMaxConcurrency,
+		MultipartCopyThresholdSize:  defaultMultipartCopyThresholdSize,
+		StorageClass:                s3.StorageClassStandard,
+		TransportWrapper:            wrapper,
+	}
+
+	_, err := New(params)
+	if err != nil {
+		t.Fatalf("unexpected error creating driver: %v", err)
+	}
+	if !wrapped {
+		t.Fatal("expected TransportWrapper to be called, but it was not")
+	}
+}
 
 var s3DriverConstructor func(rootDirectory, storageClass string) (*Driver, error)
 var skipS3 func() string
@@ -97,6 +130,7 @@ func init() {
 			driverName + "-test",
 			objectACL,
 			sessionToken,
+			nil,
 		}
 
 		return New(parameters)
