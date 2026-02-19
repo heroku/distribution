@@ -80,7 +80,7 @@ var validRegions = map[string]struct{}{}
 // validObjectACLs contains known s3 object Acls
 var validObjectACLs = map[string]struct{}{}
 
-//DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
+// DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
 type DriverParameters struct {
 	AccessKey                   string
 	SecretKey                   string
@@ -101,6 +101,7 @@ type DriverParameters struct {
 	UserAgent                   string
 	ObjectACL                   string
 	SessionToken                string
+	TransportWrapper            func(http.RoundTripper) http.RoundTripper
 }
 
 func init() {
@@ -359,6 +360,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		fmt.Sprint(userAgent),
 		objectACL,
 		fmt.Sprint(sessionToken),
+		nil,
 	}
 
 	return New(params)
@@ -437,6 +439,14 @@ func New(params DriverParameters) (*Driver, error) {
 				Transport: transport.NewTransport(httpTransport),
 			})
 		}
+	}
+
+	if params.TransportWrapper != nil {
+		existing := awsConfig.HTTPClient
+		if existing == nil {
+			existing = http.DefaultClient
+		}
+		awsConfig.WithHTTPClient(&http.Client{Transport: params.TransportWrapper(existing.Transport)})
 	}
 
 	sess, err := session.NewSession(awsConfig)
