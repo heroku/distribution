@@ -32,6 +32,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -77,8 +78,9 @@ type Access struct {
 
 // Grant describes the permitted level of access for an authorized request.
 type Grant struct {
-	User      UserInfo   // The authenticated user for the request.
-	Resources []Resource // The list of resources which have been authorized for the request.
+	User      UserInfo        // The authenticated user for the request.
+	Resources []Resource      // The list of resources which have been authorized for the request.
+	Context   context.Context // Optional enriched context from the access controller.
 }
 
 // Challenge is a special error type which is used for HTTP 401 Unauthorized

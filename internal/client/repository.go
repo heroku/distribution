@@ -17,6 +17,7 @@ import (
 
 	"github.com/distribution/distribution/v3"
 	"github.com/distribution/distribution/v3/internal/client/transport"
+	"github.com/distribution/distribution/v3/internal/dcontext"
 	v2 "github.com/distribution/distribution/v3/registry/api/v2"
 	"github.com/distribution/distribution/v3/registry/storage/cache"
 	"github.com/distribution/distribution/v3/registry/storage/cache/memory"
@@ -829,6 +830,14 @@ func (bs *blobs) Resume(ctx context.Context, id string) (distribution.BlobWriter
 		return nil, err
 	}
 
+	var offset int64
+	// take the offset from the context, if available
+	// since we are proxying the request to another registry - we trust the offset we have from _state
+	// and give that to the upstream repository
+	if v, ok := ctx.Value(dcontext.ResumeOffsetKey{}).(int64); ok {
+		offset = v
+	}
+
 	return &httpBlobUpload{
 		ctx:       ctx,
 		statter:   bs.statter,
@@ -836,6 +845,7 @@ func (bs *blobs) Resume(ctx context.Context, id string) (distribution.BlobWriter
 		uuid:      id,
 		startedAt: time.Now(),
 		location:  location,
+		offset:    offset,
 	}, nil
 }
 

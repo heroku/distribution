@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -279,6 +280,8 @@ func (buh *blobUploadHandler) ResumeBlobUpload(ctx *Context, r *http.Request) ht
 		})
 	}
 	buh.State = state
+	// store the resume offset for any repo that might need it (proxy repo)
+	ctx.Context = context.WithValue(ctx.Context, dcontext.ResumeOffsetKey{}, buh.State.Offset)
 
 	if state.Name != ctx.Repository.Named().Name() {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
