@@ -112,6 +112,7 @@ type DriverParameters struct {
 	UserAgent                   string
 	ObjectACL                   string
 	SessionToken                string
+	TransportWrapper            func(http.RoundTripper) http.RoundTripper
 	UseDualStack                bool
 	Accelerate                  bool
 	LogLevel                    aws.LogLevelType
@@ -537,6 +538,16 @@ func New(ctx context.Context, params DriverParameters) (*Driver, error) {
 		httpTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		awsConfig.WithHTTPClient(&http.Client{
 			Transport: httpTransport,
+		})
+	}
+
+	if params.TransportWrapper != nil {
+		existing := awsConfig.HTTPClient
+		if existing == nil {
+			existing = http.DefaultClient
+		}
+		awsConfig.WithHTTPClient(&http.Client{
+			Transport: params.TransportWrapper(existing.Transport),
 		})
 	}
 
