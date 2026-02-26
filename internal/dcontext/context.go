@@ -71,3 +71,9 @@ func (smc stringMapContext) Value(key interface{}) interface{} {
 
 	return smc.Context.Value(key)
 }
+
+// ResumeOffsetKey is a context key for sharing blob upload resume offset
+// between client and repository packages in proxy scenarios.
+type ResumeOffsetKey struct{}
+
+func (ResumeOffsetKey) String() string { return "state.resume.offset" }

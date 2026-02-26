@@ -878,7 +878,11 @@ func (app *App) authorized(w http.ResponseWriter, r *http.Request, context *Cont
 		return fmt.Errorf("access controller returned neither an access grant nor an error")
 	}
 
-	ctx := withUser(context.Context, grant.User)
+	baseCtx := context.Context
+	if grant.Context != nil {
+		baseCtx = grant.Context
+	}
+	ctx := withUser(baseCtx, grant.User)
 	ctx = withResources(ctx, grant.Resources)
 
 	dcontext.GetLogger(ctx, userNameKey).Info("authorized request")
